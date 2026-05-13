@@ -154,23 +154,28 @@ export function LoginForm() {
 
   return (
     <div
-      className="min-h-screen w-full flex items-center justify-center px-4 py-10"
+      className="min-h-screen w-full flex items-center justify-center px-4 py-8"
       style={{ background: "linear-gradient(180deg, #0F172A 0%, #14213d 100%)" }}
     >
       <div className="w-full max-w-[420px]">
-        {/* Wordmark — reflects the brokerage's saved branding. */}
-        <div className="flex flex-col items-center mb-10 text-white">
+        {/* Branding stack — icon → wordmark → subtitle. Spacing tuned to
+            feel tight and intentional with the hero-scale 192px brand
+            mark. Reducing the cumulative vertical gap here is what
+            removes the "loose" feeling without changing the card itself. */}
+        <div className="flex flex-col items-center mb-7 text-white">
           {/* Brokerage logo if uploaded; otherwise the DEED platform mark
-              from /public/logo.png. */}
+              from /public/logo.png. Sized as a hero brand mark — the
+              login screen is the only surface that gets the premium-scale
+              treatment; sidebar + drawer remain compact at w-7/w-12. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={settings.logoDataUrl || "/logo.png"}
             alt={brandName}
-            className="w-12 h-12 rounded-md object-cover mb-4"
+            className="w-48 h-48 rounded-md object-contain mb-3"
           />
           <span className="sr-only">{initial}</span>
           <div className="serif text-[28px] tracking-[.04em]">{brandName.toUpperCase()}</div>
-          <div className="text-[11px] uppercase tracking-[.18em] mt-2" style={{ color: "rgba(255,255,255,.55)" }}>
+          <div className="text-[11px] uppercase tracking-[.18em] mt-1.5" style={{ color: "rgba(255,255,255,.55)" }}>
             Real estate advisor platform
           </div>
         </div>
