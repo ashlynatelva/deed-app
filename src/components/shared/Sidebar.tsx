@@ -53,26 +53,18 @@ export const Sidebar = ({
       {/* Wordmark — accent color falls back to the platform gold when no
           BrandingProvider is mounted (i.e. agent dashboards). */}
       <Link href={role === "agent" ? "/agent/dashboard" : "/client/overview"} className="px-2.5 pb-6 pt-1 flex items-center gap-2.5">
-        {brandLogoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={brandLogoUrl}
-            alt={displayName}
-            className="w-7 h-7 rounded-md object-cover"
-          />
-        ) : (
-          <div
-            className="w-7 h-7 rounded-md flex items-center justify-center text-[14px]"
-            style={{
-              background: "var(--brand-accent, var(--gold))",
-              fontFamily: "var(--font-newsreader), serif",
-              fontWeight: 600,
-              color: "var(--brand-accent-on, #0F172A)",
-            }}
-          >
-            {initial}
-          </div>
-        )}
+        {/* Brokerage logo if uploaded; otherwise the DEED platform mark
+            from /public/logo.png. The mark is a navy rounded-square with
+            a gold "D" — its own background/rounding is baked in. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={brandLogoUrl || "/logo.png"}
+          alt={displayName}
+          className="w-7 h-7 rounded-md object-cover"
+        />
+        {/* `initial` is preserved as an alt-text breadcrumb for screen
+            readers in case the image fails to load. */}
+        <span className="sr-only">{initial}</span>
         <div className="min-w-0">
           <div className="serif text-[17px] leading-none truncate">{displayName}</div>
           <div className="text-[10px] uppercase tracking-[.14em] mt-[3px]" style={{ color: "rgba(255,255,255,.45)" }}>

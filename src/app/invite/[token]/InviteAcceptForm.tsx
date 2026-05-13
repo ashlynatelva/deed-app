@@ -96,25 +96,14 @@ export const InviteAcceptForm = ({ token, preview }: Props) => {
         {/* Wordmark — matches the login screen so accepted invites land in a
             familiar visual environment. */}
         <div className="flex flex-col items-center mb-10 text-white">
-          {settings.logoDataUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={settings.logoDataUrl}
-              alt={brandName}
-              className="w-12 h-12 rounded-md object-cover mb-4"
-            />
-          ) : (
-            <div
-              className="w-12 h-12 rounded-md flex items-center justify-center mb-4 serif text-[22px]"
-              style={{
-                background: palette.primary,
-                color: palette.onPrimary,
-                fontWeight: 600,
-              }}
-            >
-              {brandName.charAt(0).toUpperCase()}
-            </div>
-          )}
+          {/* Brokerage logo if uploaded; otherwise the DEED platform mark. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={settings.logoDataUrl || "/logo.png"}
+            alt={brandName}
+            className="w-12 h-12 rounded-md object-cover mb-4"
+          />
+          <span className="sr-only">{brandName.charAt(0).toUpperCase()}</span>
           <div className="serif text-[28px] tracking-[.04em]">{brandName.toUpperCase()}</div>
           <div className="text-[11px] uppercase tracking-[.18em] mt-2" style={{ color: "rgba(255,255,255,.55)" }}>
             {preview.targetRole === "agent" || preview.targetRole === "admin"

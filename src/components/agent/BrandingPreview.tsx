@@ -31,25 +31,13 @@ export const BrandingPreview = ({ draft }: { draft: BrandingSettings }) => {
           className="rounded-md text-white p-4 text-center"
           style={{ background: "linear-gradient(180deg, #0F172A 0%, #14213d 100%)" }}
         >
-          {draft.logoDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={draft.logoDataUrl}
-              alt=""
-              className="w-9 h-9 rounded-md mx-auto mb-2 object-cover"
-            />
-          ) : (
-            <div
-              className="w-9 h-9 rounded-md mx-auto mb-2 flex items-center justify-center serif text-[16px]"
-              style={{
-                background: palette.primary,
-                color: palette.onPrimary,
-                fontWeight: 600,
-              }}
-            >
-              {initial}
-            </div>
-          )}
+          {/* Mirrors LoginForm: brokerage logo if uploaded, else /logo.png. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={draft.logoDataUrl || "/logo.png"}
+            alt=""
+            className="w-9 h-9 rounded-md mx-auto mb-2 object-cover"
+          />
           <div className="serif text-[14px] tracking-[.04em] truncate">
             {brand.toUpperCase()}
           </div>
@@ -86,25 +74,13 @@ export const BrandingPreview = ({ draft }: { draft: BrandingSettings }) => {
           {/* Sidebar mock */}
           <div className="w-[40%] p-2.5 flex flex-col gap-2" style={{ background: "var(--navy)" }}>
             <div className="flex items-center gap-1.5">
-              {draft.logoDataUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={draft.logoDataUrl}
-                  alt=""
-                  className="w-4 h-4 rounded object-cover shrink-0"
-                />
-              ) : (
-                <div
-                  className="w-4 h-4 rounded flex items-center justify-center text-[9px] serif shrink-0"
-                  style={{
-                    background: palette.primary,
-                    color: palette.onPrimary,
-                    fontWeight: 600,
-                  }}
-                >
-                  {initial}
-                </div>
-              )}
+              {/* Mirrors Sidebar: brokerage logo if uploaded, else /logo.png. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={draft.logoDataUrl || "/logo.png"}
+                alt=""
+                className="w-4 h-4 rounded object-cover shrink-0"
+              />
               <div className="text-[9px] font-medium text-white truncate">{brand}</div>
             </div>
             <div

@@ -28,18 +28,37 @@ export const metadata: Metadata = {
   description:
     "A calm, structured workspace for real estate transactions — for advisors and their clients.",
   applicationName: "DEED",
+  // Icon set — drop the files into /public with these exact filenames and
+  // Next.js will wire the appropriate <link> tags into <head> automatically.
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: { url: "/apple-touch-icon.png", sizes: "180x180" },
+    shortcut: "/favicon.ico",
+  },
   openGraph: {
     title: "DEED — Real Estate Advisor Platform",
     description:
       "A calm, structured workspace for real estate transactions — for advisors and their clients.",
     siteName: "DEED",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "DEED — Real Estate Advisor Platform",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "DEED — Real Estate Advisor Platform",
     description:
       "A calm, structured workspace for real estate transactions — for advisors and their clients.",
+    images: ["/og-image.png"],
   },
 };
 

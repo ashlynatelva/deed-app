@@ -100,26 +100,14 @@ export const MobileNavDrawer = ({
         {/* Brand header — close button on the right so it's thumb-reachable. */}
         <div className="flex items-center justify-between px-2.5 pb-6 pt-1">
           <div className="flex items-center gap-2.5 min-w-0">
-            {brandLogoUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={brandLogoUrl}
-                alt={brandName}
-                className="w-7 h-7 rounded-md object-cover"
-              />
-            ) : (
-              <div
-                className="w-7 h-7 rounded-md flex items-center justify-center text-[14px]"
-                style={{
-                  background: "var(--brand-accent, var(--gold))",
-                  fontFamily: "var(--font-newsreader), serif",
-                  fontWeight: 600,
-                  color: "var(--brand-accent-on, #0F172A)",
-                }}
-              >
-                {initial}
-              </div>
-            )}
+            {/* Brokerage logo if uploaded; otherwise the DEED platform mark. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={brandLogoUrl || "/logo.png"}
+              alt={brandName}
+              className="w-7 h-7 rounded-md object-cover"
+            />
+            <span className="sr-only">{initial}</span>
             <div className="min-w-0">
               <div className="serif text-[17px] leading-none truncate">{brandName}</div>
               <div

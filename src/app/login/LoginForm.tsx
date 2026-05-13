@@ -160,25 +160,15 @@ export function LoginForm() {
       <div className="w-full max-w-[420px]">
         {/* Wordmark — reflects the brokerage's saved branding. */}
         <div className="flex flex-col items-center mb-10 text-white">
-          {settings.logoDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={settings.logoDataUrl}
-              alt={brandName}
-              className="w-12 h-12 rounded-md object-cover mb-4"
-            />
-          ) : (
-            <div
-              className="w-12 h-12 rounded-md flex items-center justify-center mb-4 serif text-[22px]"
-              style={{
-                background: palette.primary,
-                color: palette.onPrimary,
-                fontWeight: 600,
-              }}
-            >
-              {initial}
-            </div>
-          )}
+          {/* Brokerage logo if uploaded; otherwise the DEED platform mark
+              from /public/logo.png. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={settings.logoDataUrl || "/logo.png"}
+            alt={brandName}
+            className="w-12 h-12 rounded-md object-cover mb-4"
+          />
+          <span className="sr-only">{initial}</span>
           <div className="serif text-[28px] tracking-[.04em]">{brandName.toUpperCase()}</div>
           <div className="text-[11px] uppercase tracking-[.18em] mt-2" style={{ color: "rgba(255,255,255,.55)" }}>
             Real estate advisor platform
