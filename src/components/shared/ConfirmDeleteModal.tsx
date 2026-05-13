@@ -60,9 +60,6 @@ export const ConfirmDeleteModal = ({
             {itemName}
           </div>
         )}
-        <div className="text-[12px] text-muted mt-3 italic">
-          Mock demo — deletes are local to this browser session.
-        </div>
       </div>
     </div>
   </Modal>

@@ -36,11 +36,13 @@ export const NotificationsBell = ({ role }: Props) => {
     };
   }, [open]);
 
-  // Clicking a notification: optimistically mark read, close the dropdown,
-  // and route to the related page. Server action revalidates as backup.
-  const openNotification = (n: ClientNotification) => {
-    markRead(n.id);
+  // Clicking a notification: optimistically mark read (instant), close the
+  // dropdown, then navigate AFTER the server write commits. Awaiting the
+  // write prevents the next page's bell from racing the round trip and
+  // flashing the notification as unread again.
+  const openNotification = async (n: ClientNotification) => {
     setOpen(false);
+    await markRead(n.id);
     router.push(n.href);
   };
 

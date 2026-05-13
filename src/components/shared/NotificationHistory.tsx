@@ -37,8 +37,11 @@ export const NotificationHistory = ({ role }: { role: "agent" | "client" }) => {
     return notifications;
   }, [notifications, filter]);
 
-  const handleRowClick = (n: ClientNotification) => {
-    markRead(n.id);
+  const handleRowClick = async (n: ClientNotification) => {
+    // Optimistic UI flips synchronously inside markRead; the await
+    // ensures the Supabase write commits before we leave the page so the
+    // bell on the destination route sees the persisted read state.
+    await markRead(n.id);
     router.push(n.href);
   };
 

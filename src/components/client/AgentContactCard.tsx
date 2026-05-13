@@ -71,7 +71,6 @@ export const AgentContactCard = ({ agent }: { agent: AgentContact }) => {
         open={callOpen}
         onClose={() => setCallOpen(false)}
         title={`Call ${agent.name}`}
-        subtitle="Mock — your phone would normally launch here."
         size="md"
         footer={
           <>

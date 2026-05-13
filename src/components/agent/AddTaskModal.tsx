@@ -61,7 +61,6 @@ export const AddTaskModal = ({ open, onClose, onCreate }: Props) => {
       open={open}
       onClose={onClose}
       title="Add task"
-      subtitle="Mock — saved to your local session state."
       size="lg"
       footer={
         <>

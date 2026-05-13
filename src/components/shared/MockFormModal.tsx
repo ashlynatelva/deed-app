@@ -48,7 +48,7 @@ export const MockFormModal = ({ open, onClose, title, subtitle, fields, submitLa
       open={open}
       onClose={onClose}
       title={title}
-      subtitle={subtitle ?? "Mock — saved to your local session state."}
+      subtitle={subtitle}
       size={size}
       footer={
         <>
