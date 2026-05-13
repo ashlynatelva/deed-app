@@ -1,0 +1,36 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Phase I cleanup — Drop the dead `current_role` / `current_org` helpers.
+--
+-- Background:
+--   These helpers were introduced in 0001 as the original RLS gate for
+--   role + org lookups. They've been sidelined for the last 4 migrations:
+--
+--   • 0006/0007/0008 inlined the lookups directly into policies.
+--   • 0009 briefly tried to use them again (SQL-language SECURITY DEFINER)
+--     but that failed because the planner inlined the body, dropping the
+--     security context and re-triggering the infinite recursion.
+--   • 0010/0012 replaced them with plpgsql helpers under new names —
+--     `public.app_user_role()` and `public.app_user_org()` — which the
+--     planner can't inline and therefore preserves SECURITY DEFINER.
+--
+--   Since 0012 landed, no policy, trigger, or app-code RPC call references
+--   the legacy helpers. They've been verified-dead via grep:
+--     - All current policies use `public.app_user_*()` or inline subqueries.
+--     - The 0001 triggers (`on_message_insert`, `on_transaction_stage_change`,
+--       `bootstrap_transaction_stages`) don't call them.
+--     - The BrandingProvider's old `supabase.rpc("current_role")` /
+--       `supabase.rpc("current_org")` diagnostic calls were removed in
+--       the same Phase I cleanup pass that ships this migration.
+--
+-- This migration retires them. They're harmless sitting in the schema,
+-- but they're misleading clutter — a future contributor might assume
+-- they're load-bearing and reintroduce the inlining footgun.
+--
+-- Safe with CASCADE? Yes, but we're not using CASCADE — by this point
+-- nothing depends on them, so a plain DROP succeeds. If it fails on
+-- your DB, it's a signal that something snuck a reference back in;
+-- investigate before adding CASCADE.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+drop function if exists public.current_role();
+drop function if exists public.current_org();
