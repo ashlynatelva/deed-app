@@ -8,6 +8,8 @@ import { I } from "@/components/ui/Icon";
 import { useBranding } from "@/lib/hooks/useBranding";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
+import { DeedMonogram } from "@/components/shared/DeedMonogram";
+import { ForgotPasswordModal } from "@/components/shared/ForgotPasswordModal";
 
 type Role = "agent" | "client";
 
@@ -38,6 +40,7 @@ export function LoginForm() {
   const [password, setPassword] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [forgotOpen, setForgotOpen] = React.useState(false);
 
   const brandName = settings.brokerageName?.trim() || "DEED";
 
@@ -54,6 +57,19 @@ export function LoginForm() {
       setError("Your account isn't fully set up yet. Reach out to your advisor for an invite.");
     } else if (errorFlag === "revoked") {
       setError("Your portal access has been removed. Contact your advisor if you think this is a mistake.");
+    }
+  }
+
+  // After the password-reset / update-password page signs the user out
+  // and bounces them back here, surface a one-shot success toast so the
+  // hand-off doesn't feel silent. Same render-time idempotent pattern as
+  // the errorFlag handling above.
+  const noticeFlag = searchParams.get("notice");
+  const [lastNoticeFlag, setLastNoticeFlag] = React.useState<string | null>(null);
+  if (noticeFlag !== lastNoticeFlag) {
+    setLastNoticeFlag(noticeFlag);
+    if (noticeFlag === "password_updated") {
+      toast.push("Password updated. Please sign in with your new password.", "success");
     }
   }
 
@@ -293,12 +309,7 @@ export function LoginForm() {
                     is preserved. */}
                 <button
                   type="button"
-                  onClick={() => {
-                    toast.push(
-                      "Password reset isn't available yet — contact your advisor.",
-                      "info",
-                    );
-                  }}
+                  onClick={() => setForgotOpen(true)}
                   className="text-[11.5px] text-blue hover:underline cursor-pointer bg-transparent border-0 p-0 font-medium"
                 >
                   Forgot?
@@ -374,93 +385,13 @@ export function LoginForm() {
           {settings.footerText}
         </div>
       </div>
+
+      {/* Forgot-password modal — mounted unconditionally so the Modal
+          component handles its own open/close transition. */}
+      <ForgotPasswordModal open={forgotOpen} onClose={() => setForgotOpen(false)} />
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DeedMonogram — inline luxury brand mark for the login hero.
-//
-// Composition:
-//   • Outer rounded-square gold frame (2.5px stroke) — primary border.
-//   • Inner gold hairline (0.6px @ 50% opacity) — fine-stationery double-frame.
-//   • Serif "D" rendered via SVG <text> in the brand's Newsreader font.
-//   • Three ascending bars MASKED OUT of the D so the navy gradient behind
-//     the SVG shows through — true negative space, not a fill color that
-//     could mismatch the gradient at different scroll positions.
-//
-// Vector-only, no raster asset dependency. Scales to any pixel density.
-// The wrapping <div> takes the size; the SVG fills it with `w-full h-full`
-// and its viewBox preserves the composition aspect ratio.
-// ─────────────────────────────────────────────────────────────────────────────
-const DeedMonogram = ({ className }: { className?: string }) => (
-  <div className={className} aria-hidden="true">
-    <svg
-      viewBox="0 0 200 200"
-      xmlns="http://www.w3.org/2000/svg"
-      className="w-full h-full block"
-    >
-      <defs>
-        {/*
-          Mask: white pixels stay opaque, black pixels become transparent.
-          Three ascending black bars cut through the lower-right of the D
-          so the navy background shows through where the bars sit. Bars
-          are bottom-aligned at y=142 (matches the D's baseline) and
-          step up in height to create the ascending chart accent.
-        */}
-        <mask id="deed-monogram-cutout">
-          <rect width="200" height="200" fill="white" />
-          <rect x="115" y="118" width="5" height="24" fill="black" />
-          <rect x="124" y="108" width="5" height="34" fill="black" />
-          <rect x="133" y="96" width="5" height="46" fill="black" />
-        </mask>
-      </defs>
-
-      {/* Outer luxury frame */}
-      <rect
-        x="10"
-        y="10"
-        width="180"
-        height="180"
-        rx="28"
-        ry="28"
-        fill="none"
-        stroke="#C9A84C"
-        strokeWidth="2.5"
-      />
-
-      {/* Inner hairline frame */}
-      <rect
-        x="20"
-        y="20"
-        width="160"
-        height="160"
-        rx="20"
-        ry="20"
-        fill="none"
-        stroke="#C9A84C"
-        strokeWidth="0.6"
-        strokeOpacity="0.5"
-      />
-
-      {/* Serif D with bar cutouts. Font falls back to Georgia if
-          Newsreader hasn't loaded yet (font-display: swap on the
-          @next/font import in app/layout.tsx). */}
-      <text
-        x="100"
-        y="143"
-        textAnchor="middle"
-        mask="url(#deed-monogram-cutout)"
-        style={{
-          fontFamily: "var(--font-newsreader), 'Newsreader', Georgia, serif",
-          fontSize: "120px",
-          fontWeight: 500,
-          fill: "#C9A84C",
-          letterSpacing: "-2px",
-        }}
-      >
-        D
-      </text>
-    </svg>
-  </div>
-);
+// DeedMonogram now lives in @/components/shared/DeedMonogram so the
+// password-reset / auth screens can render the same brand mark.
