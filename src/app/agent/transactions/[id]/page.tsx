@@ -63,7 +63,19 @@ export default async function AgentTransactionDetailPage({
             </span>
           </div>
         </div>
-        <TransactionDetailActions txId={tx.id} clientName={tx.clientName} />
+        <TransactionDetailActions
+          txId={tx.id}
+          clientName={tx.clientName}
+          edit={{
+            address: tx.address,
+            city: tx.city ?? null,
+            price: tx.price ?? null,
+            representation: tx.representation ?? null,
+            stageKey: tx.stageKey,
+            status: tx.status,
+            closing: tx.closing ?? null,
+          }}
+        />
       </div>
 
       {/* Stacks at mobile: timeline + docs + internal notes first, then

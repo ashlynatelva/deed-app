@@ -8,6 +8,7 @@ import { StatusBadge, StageDot } from "@/components/ui/Badges";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDeleteModal } from "@/components/shared/ConfirmDeleteModal";
 import { RowActionsMenu } from "@/components/shared/RowActionsMenu";
+import { EditTransactionModal } from "@/components/agent/EditTransactionModal";
 import { deleteTransaction } from "@/lib/actions/transactions";
 import { formatCurrency, fmtShort } from "@/lib/format";
 import { STAGES } from "@/lib/mock/stages";
@@ -37,6 +38,7 @@ type Props = {
  */
 export const TxTable = ({ rows, compact = false }: Props) => {
   const [pendingDelete, setPendingDelete] = React.useState<Transaction | null>(null);
+  const [pendingEdit, setPendingEdit] = React.useState<Transaction | null>(null);
   const toast = useToast();
 
   const onConfirmDelete = async () => {
@@ -57,6 +59,12 @@ export const TxTable = ({ rows, compact = false }: Props) => {
       label: "View transaction",
       icon: "Eye" as const,
       onSelect: () => { window.location.href = `/agent/transactions/${t.id}`; },
+    },
+    {
+      id: "edit",
+      label: "Edit transaction",
+      icon: "Cog" as const,
+      onSelect: () => setPendingEdit(t),
     },
     {
       id: "delete",
@@ -112,6 +120,11 @@ export const TxTable = ({ rows, compact = false }: Props) => {
           ))}
         </div>
         <DeleteModal pending={pendingDelete} onClose={() => setPendingDelete(null)} onConfirm={onConfirmDelete} />
+        <EditTransactionModal
+          open={!!pendingEdit}
+          onClose={() => setPendingEdit(null)}
+          transaction={pendingEdit ? toEditShape(pendingEdit) : null}
+        />
       </>
     );
   }
@@ -241,3 +254,18 @@ const DeleteModal = ({
     itemName={pending?.address}
   />
 );
+
+// The camelCase `Transaction` shape mapped from Supabase carries extra
+// per-page fields (stages, documents, tasks…) that the edit modal
+// doesn't need. This helper narrows to just the editable surface,
+// keeping the modal contract tight.
+const toEditShape = (t: Transaction) => ({
+  id: t.id,
+  address: t.address,
+  city: t.city ?? null,
+  price: t.price ?? null,
+  representation: t.representation ?? null,
+  stageKey: t.stageKey,
+  status: t.status,
+  closing: t.closing ?? null,
+});

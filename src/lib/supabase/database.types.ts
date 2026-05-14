@@ -575,6 +575,15 @@ export type Database = {
         Args: { target_tx_id: string };
         Returns: void;
       };
+      update_client_profile: {
+        Args: {
+          target_client_id: string;
+          new_full_name: string;
+          new_email: string;
+          new_phone: string;
+        };
+        Returns: void;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
