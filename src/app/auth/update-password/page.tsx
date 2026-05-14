@@ -13,18 +13,25 @@ import { createClient } from "@/lib/supabase/client";
 // `resetPasswordForEmail` links.
 //
 // Flow:
-//   1. User clicks the link in the reset email. Supabase appends auth
-//      tokens to the URL hash (#access_token=…&refresh_token=…&type=recovery).
-//   2. The Supabase browser client picks those up on first call and
-//      sets the recovery session — at which point `auth.getUser()`
-//      returns the user.
-//   3. We render the new-password form. Submitting calls
-//      `auth.updateUser({ password })` and, on success, signs the user
-//      out and bounces back to /login?notice=password_updated.
-//
-// If the user lands here WITHOUT the hash tokens (bookmark, link
-// expired, etc.) `auth.getUser()` returns null and we show a calm
-// "link expired" state with a CTA back to /login.
+//   1. User clicks the link in the reset email. Supabase verifies the
+//      token then redirects to this page. Two URL shapes are possible:
+//        a. PKCE flow (default in @supabase/ssr ≥ 0.4):
+//             /auth/update-password?code=<auth-code>
+//           We MUST call `auth.exchangeCodeForSession(code)` explicitly
+//           to establish the recovery session — the browser client does
+//           NOT auto-exchange this for us.
+//        b. Implicit flow (legacy):
+//             /auth/update-password#access_token=…&refresh_token=…&type=recovery
+//           The browser client auto-detects the hash on first call.
+//      If Supabase rejected the token (expired, malformed, replayed),
+//      the URL instead contains `?error=…&error_code=…&error_description=…`.
+//   2. Once a session is established, we render the new-password form.
+//      Submitting calls `auth.updateUser({ password })` and, on success,
+//      signs the user out and bounces back to
+//      /login?notice=password_updated.
+//   3. If the user lands here without any of those URL params (bookmark,
+//      link expired, link reused), we show a calm "link expired" state
+//      with a CTA back to /login.
 //
 // The proxy lets /auth/* through without gating (only /agent, /client,
 // /login, / are gated), so this page is reachable while authenticated
@@ -44,17 +51,59 @@ export default function UpdatePasswordPage() {
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
 
-  // On mount: ask the browser-side Supabase client whether a user is
-  // present. The client auto-detects the recovery tokens in the URL
-  // hash before this resolves.
+  // On mount: figure out which auth-link shape Supabase used and turn
+  // it into a recovery session before we try to render the form.
   React.useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
+
     (async () => {
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      // Supabase puts the failure reason in either ?error=… or
+      // ?error_code=…; surface either as "expired".
+      const linkError =
+        url.searchParams.get("error") ??
+        url.searchParams.get("error_code");
+
+      if (linkError) {
+        console.warn("[update-password] Supabase returned link error", {
+          error: linkError,
+          description: url.searchParams.get("error_description"),
+        });
+        if (!cancelled) setStage("expired");
+        return;
+      }
+
+      // PKCE flow: explicitly exchange the auth code for a recovery
+      // session. The Supabase browser client does NOT do this for us
+      // when the code is in a `?code=` query param (only the hash
+      // form is auto-detected).
+      if (code) {
+        const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (cancelled) return;
+        if (exchangeErr) {
+          console.warn("[update-password] exchangeCodeForSession failed", exchangeErr);
+          setStage("expired");
+          return;
+        }
+        // Strip the code from the URL so a refresh / back-navigation
+        // doesn't try to re-exchange (which would 400 — codes are
+        // one-shot).
+        window.history.replaceState({}, "", url.pathname);
+      }
+
+      // Final check: did we end up with a real recovery session?
+      // - PKCE path: exchange above just set it.
+      // - Implicit/hash path: the browser client auto-detected
+      //   #access_token=… on construction and set it.
+      // - Already-signed-in user visiting directly: also valid; they
+      //   can update their own password.
       const { data } = await supabase.auth.getUser();
       if (cancelled) return;
       setStage(data.user ? "ready" : "expired");
     })();
+
     return () => {
       cancelled = true;
     };

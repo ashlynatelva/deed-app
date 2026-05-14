@@ -73,6 +73,21 @@ export function LoginForm() {
     }
   }
 
+  // Recovery-link fallback. If Supabase's Redirect URLs allow-list is
+  // mis-configured (or empty), the password-reset email falls back to
+  // the project's Site URL — which usually lands the user on `/`
+  // (proxied to /login) with `?code=…` still attached. Detect that and
+  // bounce them to the actual update-password page with the code
+  // preserved so the flow still completes even before the allow-list
+  // is fixed.
+  React.useEffect(() => {
+    const code = searchParams.get("code");
+    if (code) {
+      const target = `/auth/update-password?${searchParams.toString()}`;
+      window.location.replace(target);
+    }
+  }, [searchParams]);
+
   /**
    * The sign-in pipeline. Driven from both `<form onSubmit>` (Enter / Go key
    * inside an input) and the Continue button's `onClick` so neither path
