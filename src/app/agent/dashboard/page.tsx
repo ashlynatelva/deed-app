@@ -66,6 +66,32 @@ export default async function AgentDashboardPage() {
   const upcomingDeadlines = upcoming.length;
   const atRisk = txs.filter((t) => t.status === "at_risk").length;
 
+  // Derived metrics for the hero sentence + KPI hints. All computed
+  // from the already-fetched, RLS-scoped row set — no extra round
+  // trips, no hard-coded fallbacks.
+  const needsAttentionCount =
+    atRisk +
+    txs.filter((t) => t.status === "needs_attention").length +
+    docsNeeded;
+  const closingsSoonCount = txs.filter((t) => {
+    const d = daysFromNow(t.closing);
+    return d !== null && d >= 0 && d <= 14;
+  }).length;
+  // Distinct YYYY-MM buckets across the agent's active transactions —
+  // powers the "Across N closing months" hint on the Active KPI.
+  const closingMonthsCount = new Set(
+    txs
+      .map((t) => (t.closing ?? "").slice(0, 7))
+      .filter((m) => m.length === 7),
+  ).size;
+
+  // Zero state: a brand-new agent who has never created a transaction
+  // sees every KPI at 0. We surface a calm "all caught up" hero
+  // instead of the dynamic count sentence, plus a nudge to create
+  // their first transaction.
+  const allCountsZero =
+    active === 0 && docsNeeded === 0 && upcomingDeadlines === 0 && atRisk === 0;
+
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -81,17 +107,45 @@ export default async function AgentDashboardPage() {
         <div>
           <div className="text-[11px] uppercase tracking-[.14em] text-muted mb-2">{today}</div>
           <AgentDashboardGreeting />
-          <div className="text-muted mt-1.5 text-[14px]">
-            You have <span className="text-ink font-medium">3 items</span> needing attention this week
-            and <span className="text-ink font-medium">2 closings</span> in the next 14 days.
-          </div>
+          {allCountsZero ? (
+            <div className="mt-1.5">
+              <div className="text-ink text-[14px]">You&apos;re all caught up.</div>
+              <div className="text-muted text-[13px] mt-0.5">
+                Start your first transaction to begin tracking activity.
+              </div>
+            </div>
+          ) : (
+            <div className="text-muted mt-1.5 text-[14px]">
+              You have{" "}
+              <span className="text-ink font-medium">
+                {needsAttentionCount} {needsAttentionCount === 1 ? "item" : "items"}
+              </span>{" "}
+              needing attention this week and{" "}
+              <span className="text-ink font-medium">
+                {closingsSoonCount} {closingsSoonCount === 1 ? "closing" : "closings"}
+              </span>{" "}
+              in the next 14 days.
+            </div>
+          )}
         </div>
         <DashboardHeaderActions />
       </div>
 
-      {/* KPIs: 2x2 at mobile, 1x4 at desktop. */}
+      {/* KPIs: 2x2 at mobile, 1x4 at desktop. Hints describe what the
+          number means in context — most are static descriptions, but
+          the Active-transactions hint is dynamically computed from the
+          set of distinct closing months in the agent's pipeline. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
-        <KPI label="Active transactions" value={active} hint="Across 4 closing months" accent />
+        <KPI
+          label="Active transactions"
+          value={active}
+          hint={
+            closingMonthsCount === 0
+              ? "No active deals yet"
+              : `Across ${closingMonthsCount} closing ${closingMonthsCount === 1 ? "month" : "months"}`
+          }
+          accent
+        />
         <KPI label="Documents needed"    value={docsNeeded} hint="Awaiting client or third party" />
         <KPI label="Upcoming deadlines"  value={upcomingDeadlines} hint="In the next 14 days" tone="warn" />
         <KPI label="At-risk deals"       value={atRisk} hint="Lender or contingency issues" tone="risk" />
