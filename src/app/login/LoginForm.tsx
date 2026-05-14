@@ -123,6 +123,36 @@ export function LoginForm() {
       return;
     }
 
+    // Role-tab enforcement. The Agent/Client toggle on the login screen is
+    // not just a visual hint — picking the wrong tab for the account's
+    // actual role would route the user into a portal they're not entitled
+    // to, even briefly. We sign the user back out and surface a tab-
+    // specific error so the next attempt lands them on the correct one.
+    //
+    // Order matters: this gate runs AFTER the status check above so a
+    // deleted/revoked client trying any tab gets the truer "access removed"
+    // message rather than the generic wrong-tab one. Profile-missing is
+    // handled downstream by the proxy (?error=missing_profile).
+    if (profile?.role) {
+      const isAdvisor = profile.role === "agent" || profile.role === "admin";
+      const tabExpectsAdvisor = role === "agent";
+
+      if (tabExpectsAdvisor && !isAdvisor) {
+        // Client account tried the Agent tab.
+        await supabase.auth.signOut();
+        setSubmitting(false);
+        setError("This account is a client account. Please sign in through the Client tab.");
+        return;
+      }
+      if (!tabExpectsAdvisor && isAdvisor) {
+        // Agent/admin account tried the Client tab.
+        await supabase.auth.signOut();
+        setSubmitting(false);
+        setError("This account is an advisor account. Please sign in through the Agent tab.");
+        return;
+      }
+    }
+
     const home = profile?.role === "client" ? "/client/overview" : "/agent/dashboard";
 
     const redirectTo = searchParams.get("redirectTo");
