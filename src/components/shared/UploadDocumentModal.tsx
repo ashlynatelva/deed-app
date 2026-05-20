@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Toggle";
 import { I } from "@/components/ui/Icon";
 import { useTxLookup } from "@/lib/hooks/useTxLookup";
+import { DOC_CATEGORIES, type DocCategoryKey } from "@/lib/mock/stages";
 
 /**
  * Result handed off to the parent when the user clicks "Upload" / "Replace
@@ -21,6 +22,12 @@ export type UploadResult = {
   fileType: string;
   fileSize: number;
   docType: string;
+  /**
+   * Phase N — controlled-vocab category, separate from the free-text
+   * `docType` (which doubles as the document's display name).
+   * Persists into `documents.doc_category`.
+   */
+  docCategory: DocCategoryKey;
   txId: string;
   note: string;
   /** Whether the client portal should see this doc (agent mode only). */
@@ -69,6 +76,7 @@ export const UploadDocumentModal = ({
 }: Props) => {
   const [file, setFile] = React.useState<File | null>(null);
   const [docType, setDocType] = React.useState(replaceTarget?.name ?? "");
+  const [docCategory, setDocCategory] = React.useState<DocCategoryKey>("other");
   const [txId, setTxId] = React.useState(lockedTxId ?? "");
   const [note, setNote] = React.useState("");
   const [clientVisible, setClientVisible] = React.useState(true);
@@ -86,6 +94,7 @@ export const UploadDocumentModal = ({
     if (open) {
       setFile(null);
       setDocType(replaceTarget?.name ?? "");
+      setDocCategory("other");
       setTxId(lockedTxId ?? "");
       setNote("");
       setClientVisible(true);
@@ -114,6 +123,7 @@ export const UploadDocumentModal = ({
         fileType: file.type || "application/octet-stream",
         fileSize: file.size,
         docType: effectiveDocType,
+        docCategory,
         txId,
         note,
         clientVisible,
@@ -213,6 +223,20 @@ export const UploadDocumentModal = ({
               <option value="" disabled>Choose a type…</option>
               {DOC_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </Field>
+        )}
+
+        {!isReplace && (
+          <Field label="Category">
+            <select
+              value={docCategory}
+              onChange={(e) => setDocCategory(e.target.value as DocCategoryKey)}
+              className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60"
+            >
+              {DOC_CATEGORIES.map((c) => (
+                <option key={c.key} value={c.key}>{c.label}</option>
               ))}
             </select>
           </Field>

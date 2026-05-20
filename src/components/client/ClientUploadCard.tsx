@@ -46,6 +46,7 @@ export const ClientUploadCard = ({ txId }: { txId: string }) => {
           const fd = new FormData();
           fd.set("txId", info.txId);
           fd.set("docType", info.docType);
+          fd.set("docCategory", info.docCategory);
           fd.set("who", "Client");
           fd.set("uploadedByRole", "client");
           // Client uploads are always visible to both sides; toggle hidden in

@@ -2,6 +2,7 @@
 // tables one-to-one (snake_case → camelCase mapping at the data layer).
 
 export type StageKey =
+  // Sale-workflow stages (existing)
   | "offer"
   | "contract"
   | "earnest"
@@ -10,7 +11,14 @@ export type StageKey =
   | "loan"
   | "ctc"
   | "walk"
-  | "closing";
+  | "closing"
+  // Phase N additions
+  | "listing_onboarding"
+  | "buyer_onboarding"
+  | "credit_repair"
+  | "frame"
+  | "lease_signed"
+  | "occupancy";
 
 export type TransactionStatus = "on_track" | "needs_attention" | "at_risk";
 
@@ -19,7 +27,19 @@ export type DocumentStatus =
   | "submitted"
   | "received"
   | "reviewed"
-  | "revision";
+  | "revision"
+  // Phase N signing statuses
+  | "awaiting_signature"
+  | "signed"
+  | "rejected"
+  | "expired";
+
+/**
+ * Primary workflow signal on a transaction. Drives form copy
+ * (Sale price vs Rental price) and the bootstrap-stages trigger's
+ * choice of stage array.
+ */
+export type ClientType = "buyer" | "seller" | "commercial_tenant" | "residential_tenant";
 
 export type StageState = "done" | "current" | "upcoming";
 
@@ -103,7 +123,12 @@ export type Transaction = {
   id: string;
   address: string;
   city: string;
+  /** Sale price (whole dollars). Zero for leasing workflows. */
   price: number;
+  /** Phase N — monthly rent (whole dollars). Zero for sale workflows. */
+  rentalPrice: number;
+  /** Phase N — primary workflow signal. Drives Sale vs Rental display. */
+  clientType: ClientType;
   clientId: string;
   clientName: string;
   type: string;

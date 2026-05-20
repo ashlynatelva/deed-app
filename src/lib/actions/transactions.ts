@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import type {
+  ClientType,
   Representation,
   StageKey,
   TransactionStatus,
@@ -33,8 +34,12 @@ import type {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STAGE_KEYS = [
+  // Sale workflow
   "offer", "contract", "earnest", "inspection", "appraisal",
   "loan",  "ctc",      "walk",    "closing",
+  // Phase N: onboarding + cross-cutting + leasing
+  "listing_onboarding", "buyer_onboarding", "credit_repair",
+  "frame", "lease_signed", "occupancy",
 ] as const satisfies readonly StageKey[];
 
 const STATUS_KEYS = ["on_track", "needs_attention", "at_risk"] as const satisfies readonly TransactionStatus[];
@@ -42,6 +47,13 @@ const STATUS_KEYS = ["on_track", "needs_attention", "at_risk"] as const satisfie
 const REPRESENTATIONS = [
   "buyer_client", "buyer_customer", "seller_client", "seller_customer",
 ] as const satisfies readonly Representation[];
+
+// Phase N — primary workflow signal on a transaction. Drives the DB
+// trigger's choice of stage seeds, plus the UI's Sale-vs-Rental price
+// labeling.
+const CLIENT_TYPES = [
+  "buyer", "seller", "commercial_tenant", "residential_tenant",
+] as const satisfies readonly ClientType[];
 
 type Result<T = void> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -52,11 +64,17 @@ type Result<T = void> = { ok: true; data: T } | { ok: false; error: string };
 export type CreateTransactionInput = {
   address: string;
   city?: string;
-  /** Free-text price; the action parses to a number. Empty allowed. */
+  /** Free-text SALE price. Parsed via parsePrice. Used when clientType
+   *  is buyer/seller. Empty allowed. */
   price?: string;
+  /** Free-text monthly RENTAL price. Used when clientType is a tenant. */
+  rentalPrice?: string;
   /** Loose category label, e.g. "Buyer · Single-family". */
   type?: string;
   representation?: string;
+  /** Phase N — primary workflow signal. Defaults to 'buyer' if unset
+   *  (matches the historical behavior of an offer-stage transaction). */
+  clientType?: string;
   stageKey?: string;
   status?: string;
   /** YYYY-MM-DD. */
@@ -106,6 +124,11 @@ export async function createTransaction(
   const stageKey: StageKey = isOneOf(input.stageKey, STAGE_KEYS) ?? "offer";
   const status: TransactionStatus = isOneOf(input.status, STATUS_KEYS) ?? "on_track";
   const representation = isOneOf(input.representation, REPRESENTATIONS);
+  // Default to 'buyer' so existing form callers that don't yet supply
+  // clientType behave exactly like before (and the DB trigger seeds
+  // the buyer stage array).
+  const clientType: ClientType = isOneOf(input.clientType, CLIENT_TYPES) ?? "buyer";
+  const isLeasing = clientType === "commercial_tenant" || clientType === "residential_tenant";
 
   const { data, error } = await supabase
     .from("transactions")
@@ -117,9 +140,14 @@ export async function createTransaction(
       client_id: null,
       address,
       city: input.city?.trim() || null,
-      price: parsePrice(input.price),
+      // Price routing: leasing transactions write rental_price (monthly
+      // rent); everything else writes price (sale). Both columns
+      // co-exist; whichever isn't relevant stays null.
+      price: isLeasing ? null : parsePrice(input.price),
+      rental_price: isLeasing ? parsePrice(input.rentalPrice) : null,
       type: input.type?.trim() || null,
       representation,
+      client_type: clientType,
       stage_key: stageKey,
       status,
       closing: input.closing?.trim() || null,
@@ -139,6 +167,169 @@ export async function createTransaction(
   revalidatePath("/agent/clients");
 
   return { ok: true, data: { id: data.id } };
+}
+
+// ─── update ─────────────────────────────────────────────────────────────────
+//
+// Editable transaction fields, mirroring `CreateTransactionInput` but
+// every field optional so the caller can do a partial update. The
+// existing transactions RLS policy (`Agents read/write their txs`,
+// migration 0012) already gates UPDATEs to the row's owning agent /
+// admins-in-org, so we don't need a SECURITY DEFINER RPC — we just
+// have to be defensive about which columns we send. Specifically:
+//   - `agent_id` / `organization_id` / `client_id` are never accepted
+//     from caller input. Reassigning a transaction to a different
+//     agent or org is a different action surface.
+//   - Soft-deleted rows are out of bounds. The `.is("deleted_at", null)`
+//     filter on the update means a deleted tx silently returns
+//     zero-rows-affected; we surface that as a "not found" error.
+
+export type UpdateTransactionInput = {
+  address?: string;
+  city?: string;
+  /** Free-text SALE price. Empty string clears it. */
+  price?: string;
+  /** Free-text monthly RENTAL price. Empty string clears it. */
+  rentalPrice?: string;
+  type?: string;
+  representation?: string;
+  /** Phase N — primary workflow. Empty string clears. */
+  clientType?: string;
+  stageKey?: string;
+  status?: string;
+  /** YYYY-MM-DD. Empty clears the value. */
+  closing?: string;
+};
+
+const updateTxFriendlyError = (raw: string | null): string => {
+  if (!raw) return "Could not update transaction.";
+  // PostgREST returns a sentinel string when the UPDATE matched no rows
+  // — that's how `.is("deleted_at", null)` excludes deleted rows. Map to
+  // a clearer message.
+  if (/no rows|matched 0/i.test(raw)) {
+    return "Transaction not found or no longer editable.";
+  }
+  return raw;
+};
+
+export async function updateTransaction(
+  txId: string,
+  input: UpdateTransactionInput,
+): Promise<Result> {
+  if (!txId) return { ok: false, error: "Missing transaction id." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  // Build the patch from the input, skipping undefined entries so the
+  // caller can do a partial update and only the touched columns hit the
+  // database. Trim strings here so we don't push leading/trailing
+  // whitespace into the DB.
+  //
+  // The type annotation matches what Supabase's generated Update shape
+  // accepts (TablesUpdate<"transactions">). agent_id / organization_id /
+  // client_id are deliberately NOT mirrored into the patch — see file
+  // header comment.
+  const patch: {
+    address?: string;
+    city?: string | null;
+    price?: number | null;
+    rental_price?: number | null;
+    type?: string | null;
+    representation?: Representation | null;
+    client_type?: ClientType | null;
+    stage_key?: StageKey;
+    status?: TransactionStatus;
+    closing?: string | null;
+  } = {};
+
+  if (input.address !== undefined) {
+    const trimmed = input.address.trim();
+    if (!trimmed) {
+      return { ok: false, error: "Property address is required." };
+    }
+    patch.address = trimmed;
+  }
+  if (input.city !== undefined) {
+    patch.city = input.city.trim() || null;
+  }
+  if (input.price !== undefined) {
+    patch.price = parsePrice(input.price);
+  }
+  if (input.rentalPrice !== undefined) {
+    patch.rental_price = parsePrice(input.rentalPrice);
+  }
+  if (input.type !== undefined) {
+    patch.type = input.type.trim() || null;
+  }
+  if (input.representation !== undefined) {
+    // Empty string clears the field; any other value must match the enum.
+    if (input.representation === "") {
+      patch.representation = null;
+    } else {
+      const rep = isOneOf(input.representation, REPRESENTATIONS);
+      if (!rep) return { ok: false, error: "Invalid representation value." };
+      patch.representation = rep;
+    }
+  }
+  if (input.clientType !== undefined) {
+    if (input.clientType === "") {
+      patch.client_type = null;
+    } else {
+      const ct = isOneOf(input.clientType, CLIENT_TYPES);
+      if (!ct) return { ok: false, error: "Invalid client type value." };
+      patch.client_type = ct;
+    }
+  }
+  if (input.stageKey !== undefined) {
+    const stage = isOneOf(input.stageKey, STAGE_KEYS);
+    if (!stage) return { ok: false, error: "Invalid stage value." };
+    patch.stage_key = stage;
+  }
+  if (input.status !== undefined) {
+    const status = isOneOf(input.status, STATUS_KEYS);
+    if (!status) return { ok: false, error: "Invalid status value." };
+    patch.status = status;
+  }
+  if (input.closing !== undefined) {
+    const cleaned = input.closing.trim();
+    if (cleaned && !/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+      return { ok: false, error: "Closing date must be YYYY-MM-DD." };
+    }
+    patch.closing = cleaned || null;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return { ok: true, data: undefined };
+  }
+
+  const { data, error } = await supabase
+    .from("transactions")
+    .update(patch)
+    .eq("id", txId)
+    .is("deleted_at", null)
+    .select("id");
+
+  if (error) {
+    console.error("[updateTransaction]", error);
+    return { ok: false, error: updateTxFriendlyError(error.message) };
+  }
+  if (!data || data.length === 0) {
+    // RLS hid the row, the row is soft-deleted, or the id doesn't exist
+    // — all of which we surface to the user the same way.
+    return { ok: false, error: "Transaction not found or no longer editable." };
+  }
+
+  // Same revalidation surfaces as create / delete. Sidebar KPI also
+  // reacts via realtime postgres_changes on `transactions`.
+  revalidatePath("/agent/transactions");
+  revalidatePath(`/agent/transactions/${txId}`);
+  revalidatePath("/agent/dashboard");
+  revalidatePath("/agent/clients");
+  revalidatePath("/agent/documents");
+
+  return { ok: true, data: undefined };
 }
 
 // ─── delete (soft) ──────────────────────────────────────────────────────────

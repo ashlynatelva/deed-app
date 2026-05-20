@@ -67,6 +67,69 @@ export async function revokeClientPortalAccess(
 }
 
 /**
+ * Edit a client's display fields (name, contact email, phone) on
+ * behalf of the agent / admin.
+ *
+ * Backed by the SECURITY DEFINER RPC `public.update_client_profile`
+ * (migration 0020). RLS only lets users update their own profile, so
+ * an agent editing a client's row has to go through this RPC. Org
+ * scoping + role gating live inside the RPC.
+ *
+ * Important: this updates `profiles.email` (the contact email shown
+ * in the agent's workspace) — it does NOT change `auth.users.email`
+ * (the sign-in identifier). Callers should surface that distinction
+ * to the user. We don't expose a path to rotate the sign-in email
+ * because it would require either a service-role admin call or a
+ * re-invite flow, neither of which fits the "fix a typo" UX this
+ * action targets.
+ */
+const updateClientFriendlyError = (message: string): string => {
+  switch (message) {
+    case "not_signed_in":            return "You're not signed in.";
+    case "caller_profile_missing":   return "Your profile couldn't be found.";
+    case "caller_not_authorized":    return "Only agents and admins can edit clients.";
+    case "target_not_found":         return "Client not found.";
+    case "target_not_a_client":      return "Only client accounts can be edited through this action.";
+    case "target_other_organization":
+      return "That client belongs to a different organization.";
+    case "full_name_required":       return "Full name is required.";
+    case "email_required":           return "Email is required.";
+    case "email_invalid":            return "Please enter a valid email address.";
+    default:                         return message;
+  }
+};
+
+export type UpdateClientInput = {
+  fullName: string;
+  email: string;
+  phone?: string;
+};
+
+export async function updateClient(
+  clientId: string,
+  input: UpdateClientInput,
+): Promise<Result> {
+  if (!clientId) return { ok: false, error: "Missing client id." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_client_profile", {
+    target_client_id: clientId,
+    new_full_name: input.fullName,
+    new_email: input.email,
+    new_phone: input.phone ?? "",
+  });
+  if (error) {
+    console.error("[updateClient]", error);
+    return { ok: false, error: updateClientFriendlyError(error.message) };
+  }
+
+  revalidatePath("/agent/clients");
+  revalidatePath("/agent/dashboard");
+  revalidatePath("/agent/transactions");
+  return { ok: true };
+}
+
+/**
  * Fully delete a client from the agent's active workspace. Distinct from
  * `revokeClientPortalAccess` — that flips status to 'inactive' (login
  * blocked, but the row still appears in the agent's "active clients"

@@ -12,6 +12,7 @@ import { PageShell } from "@/components/shared/PageShell";
 import { ConfirmDeleteModal } from "@/components/shared/ConfirmDeleteModal";
 import { RowActionsMenu } from "@/components/shared/RowActionsMenu";
 import { InviteClientModal } from "@/components/agent/InviteClientModal";
+import { EditClientModal } from "@/components/agent/EditClientModal";
 import { revokeInvite } from "@/lib/actions/invites";
 import { revokeClientPortalAccess, deleteClient } from "@/lib/actions/clients";
 
@@ -58,9 +59,9 @@ export const ClientsClient = ({
 }) => {
   const [rows, setRows] = React.useState<ClientsRow[]>(initial);
   const [inviteOpen, setInviteOpen] = React.useState(false);
-  // Three lifecycle modals, one each for a distinct action. Kept on
-  // separate state slots so a stuck modal can't interfere with a fresh
-  // user choice.
+  // One state slot per lifecycle action so a stuck modal can't
+  // interfere with a fresh user choice.
+  const [pendingEditClient, setPendingEditClient] = React.useState<ClientRow | null>(null);
   const [pendingRevokeAccess, setPendingRevokeAccess] = React.useState<ClientRow | null>(null);
   const [pendingDeleteClient, setPendingDeleteClient] = React.useState<ClientRow | null>(null);
   const [pendingRevokeInvite, setPendingRevokeInvite] = React.useState<PendingInviteRow | null>(null);
@@ -218,6 +219,7 @@ export const ClientsClient = ({
                     ariaLabel={`Manage ${r.name}`}
                     actions={[
                       { id: "view",   label: "View transaction",     icon: "Eye",   onSelect: () => { window.location.href = `/agent/transactions/${r.txId}`; } },
+                      { id: "edit",   label: "Edit client",          icon: "User",  onSelect: () => setPendingEditClient(r) },
                       { id: "revoke", label: "Remove portal access", icon: "Lock",  onSelect: () => setPendingRevokeAccess(r) },
                       { id: "delete", label: "Delete client",        icon: "Trash", destructive: true, onSelect: () => setPendingDeleteClient(r) },
                     ]}
@@ -315,6 +317,21 @@ export const ClientsClient = ({
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         txOptions={txOptions}
+      />
+
+      <EditClientModal
+        open={!!pendingEditClient}
+        onClose={() => setPendingEditClient(null)}
+        client={
+          pendingEditClient
+            ? {
+                id: pendingEditClient.id,
+                fullName: pendingEditClient.name,
+                email: pendingEditClient.email,
+                phone: pendingEditClient.phone,
+              }
+            : null
+        }
       />
 
       <ConfirmDeleteModal

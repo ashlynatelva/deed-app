@@ -65,6 +65,7 @@ export const NextStepCard = ({ tx, docs }: Props) => {
               const fd = new FormData();
               fd.set("txId", info.txId);
               fd.set("docType", info.docType || next.name);
+              fd.set("docCategory", info.docCategory);
               fd.set("who", "Client");
               fd.set("uploadedByRole", "client");
               fd.set("clientVisible", "true");

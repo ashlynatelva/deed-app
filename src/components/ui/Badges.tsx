@@ -32,11 +32,17 @@ export const StatusBadge = ({
 };
 
 const docMap: Record<DocumentStatus, { bg: string; fg: string }> = {
+  // Existing five statuses
   needed:    { bg: "#F3F4F6",                fg: "#374151" },
   submitted: { bg: "var(--status-info-bg)",  fg: "var(--status-info-fg)" },
   received:  { bg: "var(--status-info-bg)",  fg: "var(--status-info-fg)" },
   reviewed:  { bg: "var(--status-ok-bg)",    fg: "var(--status-ok-fg)" },
   revision:  { bg: "var(--status-warn-bg)",  fg: "var(--status-warn-fg)" },
+  // Phase N — signing workflow statuses
+  awaiting_signature: { bg: "var(--status-warn-bg)", fg: "var(--status-warn-fg)" },
+  signed:             { bg: "var(--status-ok-bg)",   fg: "var(--status-ok-fg)" },
+  rejected:           { bg: "var(--status-risk-bg)", fg: "var(--status-risk-fg)" },
+  expired:            { bg: "#F3F4F6",               fg: "#6B7280" },
 };
 
 export const DocBadge = ({ status }: { status: DocumentStatus }) => {

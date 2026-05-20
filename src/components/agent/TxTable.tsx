@@ -8,10 +8,22 @@ import { StatusBadge, StageDot } from "@/components/ui/Badges";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDeleteModal } from "@/components/shared/ConfirmDeleteModal";
 import { RowActionsMenu } from "@/components/shared/RowActionsMenu";
+import { EditTransactionModal } from "@/components/agent/EditTransactionModal";
 import { deleteTransaction } from "@/lib/actions/transactions";
 import { formatCurrency, fmtShort } from "@/lib/format";
 import { STAGES } from "@/lib/mock/stages";
 import type { Transaction } from "@/lib/types";
+
+// Phase N — display the right price for the workflow. Leasing
+// transactions show monthly rent with a "/mo" suffix; sale workflows
+// show the sale price as before. Falls back gracefully when the value
+// is 0 (no price entered yet).
+const displayPrice = (t: Transaction): string => {
+  if (t.clientType === "residential_tenant" || t.clientType === "commercial_tenant") {
+    return t.rentalPrice ? `${formatCurrency(t.rentalPrice)}/mo` : formatCurrency(0);
+  }
+  return formatCurrency(t.price);
+};
 
 type Props = {
   rows: Transaction[];
@@ -37,6 +49,7 @@ type Props = {
  */
 export const TxTable = ({ rows, compact = false }: Props) => {
   const [pendingDelete, setPendingDelete] = React.useState<Transaction | null>(null);
+  const [pendingEdit, setPendingEdit] = React.useState<Transaction | null>(null);
   const toast = useToast();
 
   const onConfirmDelete = async () => {
@@ -57,6 +70,12 @@ export const TxTable = ({ rows, compact = false }: Props) => {
       label: "View transaction",
       icon: "Eye" as const,
       onSelect: () => { window.location.href = `/agent/transactions/${t.id}`; },
+    },
+    {
+      id: "edit",
+      label: "Edit transaction",
+      icon: "Cog" as const,
+      onSelect: () => setPendingEdit(t),
     },
     {
       id: "delete",
@@ -112,6 +131,11 @@ export const TxTable = ({ rows, compact = false }: Props) => {
           ))}
         </div>
         <DeleteModal pending={pendingDelete} onClose={() => setPendingDelete(null)} onConfirm={onConfirmDelete} />
+        <EditTransactionModal
+          open={!!pendingEdit}
+          onClose={() => setPendingEdit(null)}
+          transaction={pendingEdit ? toEditShape(pendingEdit) : null}
+        />
       </>
     );
   }
@@ -142,7 +166,7 @@ export const TxTable = ({ rows, compact = false }: Props) => {
               <div className="min-w-0">
                 <div className="text-[13.5px] font-medium text-ink truncate">{t.address}</div>
                 <div className="text-[11.5px] text-muted mt-0.5">
-                  {t.city} · {formatCurrency(t.price)}
+                  {t.city} · {displayPrice(t)}
                 </div>
               </div>
               <div className="flex items-center gap-2 min-w-0">
@@ -190,7 +214,7 @@ export const TxTable = ({ rows, compact = false }: Props) => {
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] font-medium text-ink leading-snug">{t.address}</div>
                     <div className="text-[11.5px] text-muted mt-0.5">
-                      {t.city} · {formatCurrency(t.price)}
+                      {t.city} · {displayPrice(t)}
                     </div>
                   </div>
                   <StatusBadge status={t.status} size="sm" />
@@ -241,3 +265,20 @@ const DeleteModal = ({
     itemName={pending?.address}
   />
 );
+
+// The camelCase `Transaction` shape mapped from Supabase carries extra
+// per-page fields (stages, documents, tasks…) that the edit modal
+// doesn't need. This helper narrows to just the editable surface,
+// keeping the modal contract tight.
+const toEditShape = (t: Transaction) => ({
+  id: t.id,
+  address: t.address,
+  city: t.city ?? null,
+  price: t.price ?? null,
+  rentalPrice: t.rentalPrice ?? null,
+  clientType: t.clientType ?? null,
+  representation: t.representation ?? null,
+  stageKey: t.stageKey,
+  status: t.status,
+  closing: t.closing ?? null,
+});
