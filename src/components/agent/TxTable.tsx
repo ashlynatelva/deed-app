@@ -242,6 +242,11 @@ export const TxTable = ({ rows, compact = false }: Props) => {
         </div>
       </div>
       <DeleteModal pending={pendingDelete} onClose={() => setPendingDelete(null)} onConfirm={onConfirmDelete} />
+      <EditTransactionModal
+        open={!!pendingEdit}
+        onClose={() => setPendingEdit(null)}
+        transaction={pendingEdit ? toEditShape(pendingEdit) : null}
+      />
     </>
   );
 };
