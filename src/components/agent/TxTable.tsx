@@ -14,6 +14,17 @@ import { formatCurrency, fmtShort } from "@/lib/format";
 import { STAGES } from "@/lib/mock/stages";
 import type { Transaction } from "@/lib/types";
 
+// Phase N — display the right price for the workflow. Leasing
+// transactions show monthly rent with a "/mo" suffix; sale workflows
+// show the sale price as before. Falls back gracefully when the value
+// is 0 (no price entered yet).
+const displayPrice = (t: Transaction): string => {
+  if (t.clientType === "residential_tenant" || t.clientType === "commercial_tenant") {
+    return t.rentalPrice ? `${formatCurrency(t.rentalPrice)}/mo` : formatCurrency(0);
+  }
+  return formatCurrency(t.price);
+};
+
 type Props = {
   rows: Transaction[];
   /**
@@ -155,7 +166,7 @@ export const TxTable = ({ rows, compact = false }: Props) => {
               <div className="min-w-0">
                 <div className="text-[13.5px] font-medium text-ink truncate">{t.address}</div>
                 <div className="text-[11.5px] text-muted mt-0.5">
-                  {t.city} · {formatCurrency(t.price)}
+                  {t.city} · {displayPrice(t)}
                 </div>
               </div>
               <div className="flex items-center gap-2 min-w-0">
@@ -203,7 +214,7 @@ export const TxTable = ({ rows, compact = false }: Props) => {
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] font-medium text-ink leading-snug">{t.address}</div>
                     <div className="text-[11.5px] text-muted mt-0.5">
-                      {t.city} · {formatCurrency(t.price)}
+                      {t.city} · {displayPrice(t)}
                     </div>
                   </div>
                   <StatusBadge status={t.status} size="sm" />
@@ -264,6 +275,8 @@ const toEditShape = (t: Transaction) => ({
   address: t.address,
   city: t.city ?? null,
   price: t.price ?? null,
+  rentalPrice: t.rentalPrice ?? null,
+  clientType: t.clientType ?? null,
   representation: t.representation ?? null,
   stageKey: t.stageKey,
   status: t.status,

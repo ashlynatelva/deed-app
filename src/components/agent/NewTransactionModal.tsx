@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { createTransaction } from "@/lib/actions/transactions";
+import { STAGES } from "@/lib/mock/stages";
 
 type Props = {
   open: boolean;
@@ -33,17 +34,10 @@ type Props = {
  * starts unlinked, and the Phase H invite flow attaches the client on
  * acceptance.
  */
-const STAGE_OPTIONS = [
-  { value: "offer",      label: "Offer sent" },
-  { value: "contract",   label: "Under contract" },
-  { value: "earnest",    label: "Earnest money" },
-  { value: "inspection", label: "Inspection" },
-  { value: "appraisal",  label: "Appraisal" },
-  { value: "loan",       label: "Loan approval" },
-  { value: "ctc",        label: "Clear to close" },
-  { value: "walk",       label: "Final walkthrough" },
-  { value: "closing",    label: "Closing day" },
-];
+// Derive stage options from the single source of truth in
+// lib/mock/stages.ts so adding/renaming a stage doesn't drift across
+// files.
+const STAGE_OPTIONS = STAGES.map((s) => ({ value: s.key, label: s.label }));
 
 const STATUS_OPTIONS = [
   { value: "on_track",        label: "On track" },
@@ -58,11 +52,26 @@ const REPRESENTATION_OPTIONS = [
   { value: "seller_customer", label: "Seller · Customer" },
 ];
 
+// Phase N — primary workflow signal. Buyer/seller use Sale price;
+// tenant variants use Rental price. The DB trigger also seeds
+// different stage arrays based on this.
+const CLIENT_TYPE_OPTIONS = [
+  { value: "buyer",              label: "Buyer" },
+  { value: "seller",             label: "Seller" },
+  { value: "residential_tenant", label: "Residential tenant" },
+  { value: "commercial_tenant",  label: "Commercial tenant" },
+];
+
+const isLeasing = (clientType: string): boolean =>
+  clientType === "residential_tenant" || clientType === "commercial_tenant";
+
 type Draft = {
   address: string;
   city: string;
+  clientType: string;
   representation: string;
   price: string;
+  rentalPrice: string;
   closing: string;
   stageKey: string;
   status: string;
@@ -71,8 +80,10 @@ type Draft = {
 const EMPTY_DRAFT: Draft = {
   address: "",
   city: "",
+  clientType: "buyer",
   representation: "",
   price: "",
+  rentalPrice: "",
   closing: "",
   stageKey: "offer",
   status: "on_track",
@@ -110,7 +121,12 @@ export const NewTransactionModal = ({ open, onClose }: Props) => {
     const res = await createTransaction({
       address: draft.address,
       city: draft.city,
-      price: draft.price,
+      clientType: draft.clientType,
+      // Server-side, only the price field matching the clientType is
+      // persisted; sending both is harmless but we send only the
+      // relevant one for clarity in network inspection.
+      price: isLeasing(draft.clientType) ? "" : draft.price,
+      rentalPrice: isLeasing(draft.clientType) ? draft.rentalPrice : "",
       representation: draft.representation,
       stageKey: draft.stageKey,
       status: draft.status,
@@ -169,29 +185,56 @@ export const NewTransactionModal = ({ open, onClose }: Props) => {
           />
         </Field>
 
+        <Field label="Client type">
+          <select
+            value={draft.clientType}
+            onChange={(e) => set("clientType", e.target.value)}
+            disabled={submitting}
+            className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60 disabled:opacity-60"
+          >
+            {CLIENT_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </Field>
+
         <Field label="Representation">
           <select
             value={draft.representation}
             onChange={(e) => set("representation", e.target.value)}
-            disabled={submitting}
+            disabled={submitting || isLeasing(draft.clientType)}
             className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60 disabled:opacity-60"
           >
-            <option value="">Choose representation…</option>
+            <option value="">
+              {isLeasing(draft.clientType) ? "—" : "Choose representation…"}
+            </option>
             {REPRESENTATION_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </Field>
 
-        <Field label="Sale price">
-          <input
-            value={draft.price}
-            onChange={(e) => set("price", e.target.value)}
-            placeholder="$1,295,000"
-            disabled={submitting}
-            className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60 disabled:opacity-60"
-          />
-        </Field>
+        {isLeasing(draft.clientType) ? (
+          <Field label="Rental price (monthly)">
+            <input
+              value={draft.rentalPrice}
+              onChange={(e) => set("rentalPrice", e.target.value)}
+              placeholder="$4,500"
+              disabled={submitting}
+              className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60 disabled:opacity-60"
+            />
+          </Field>
+        ) : (
+          <Field label="Sale price">
+            <input
+              value={draft.price}
+              onChange={(e) => set("price", e.target.value)}
+              placeholder="$1,295,000"
+              disabled={submitting}
+              className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60 disabled:opacity-60"
+            />
+          </Field>
+        )}
 
         <Field label="Target closing">
           <input

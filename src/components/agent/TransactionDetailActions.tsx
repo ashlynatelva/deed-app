@@ -20,6 +20,10 @@ type Props = {
     address: string;
     city: string | null;
     price: number | null;
+    /** Phase N — monthly rent in whole dollars; null for sale workflows. */
+    rentalPrice: number | null;
+    /** Phase N — workflow signal. */
+    clientType: string | null;
     representation: string | null;
     stageKey: string;
     status: string;
@@ -70,6 +74,7 @@ export const TransactionDetailActions = ({ txId, clientName, edit }: Props) => {
           const fd = new FormData();
           fd.set("txId", info.txId);
           fd.set("docType", info.docType);
+          fd.set("docCategory", info.docCategory);
           fd.set("who", "Agent");
           fd.set("uploadedByRole", "agent");
           fd.set("clientVisible", String(info.clientVisible));

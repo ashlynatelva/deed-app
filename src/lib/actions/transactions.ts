@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import type {
+  ClientType,
   Representation,
   StageKey,
   TransactionStatus,
@@ -33,8 +34,12 @@ import type {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STAGE_KEYS = [
+  // Sale workflow
   "offer", "contract", "earnest", "inspection", "appraisal",
   "loan",  "ctc",      "walk",    "closing",
+  // Phase N: onboarding + cross-cutting + leasing
+  "listing_onboarding", "buyer_onboarding", "credit_repair",
+  "frame", "lease_signed", "occupancy",
 ] as const satisfies readonly StageKey[];
 
 const STATUS_KEYS = ["on_track", "needs_attention", "at_risk"] as const satisfies readonly TransactionStatus[];
@@ -42,6 +47,13 @@ const STATUS_KEYS = ["on_track", "needs_attention", "at_risk"] as const satisfie
 const REPRESENTATIONS = [
   "buyer_client", "buyer_customer", "seller_client", "seller_customer",
 ] as const satisfies readonly Representation[];
+
+// Phase N — primary workflow signal on a transaction. Drives the DB
+// trigger's choice of stage seeds, plus the UI's Sale-vs-Rental price
+// labeling.
+const CLIENT_TYPES = [
+  "buyer", "seller", "commercial_tenant", "residential_tenant",
+] as const satisfies readonly ClientType[];
 
 type Result<T = void> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -52,11 +64,17 @@ type Result<T = void> = { ok: true; data: T } | { ok: false; error: string };
 export type CreateTransactionInput = {
   address: string;
   city?: string;
-  /** Free-text price; the action parses to a number. Empty allowed. */
+  /** Free-text SALE price. Parsed via parsePrice. Used when clientType
+   *  is buyer/seller. Empty allowed. */
   price?: string;
+  /** Free-text monthly RENTAL price. Used when clientType is a tenant. */
+  rentalPrice?: string;
   /** Loose category label, e.g. "Buyer · Single-family". */
   type?: string;
   representation?: string;
+  /** Phase N — primary workflow signal. Defaults to 'buyer' if unset
+   *  (matches the historical behavior of an offer-stage transaction). */
+  clientType?: string;
   stageKey?: string;
   status?: string;
   /** YYYY-MM-DD. */
@@ -106,6 +124,11 @@ export async function createTransaction(
   const stageKey: StageKey = isOneOf(input.stageKey, STAGE_KEYS) ?? "offer";
   const status: TransactionStatus = isOneOf(input.status, STATUS_KEYS) ?? "on_track";
   const representation = isOneOf(input.representation, REPRESENTATIONS);
+  // Default to 'buyer' so existing form callers that don't yet supply
+  // clientType behave exactly like before (and the DB trigger seeds
+  // the buyer stage array).
+  const clientType: ClientType = isOneOf(input.clientType, CLIENT_TYPES) ?? "buyer";
+  const isLeasing = clientType === "commercial_tenant" || clientType === "residential_tenant";
 
   const { data, error } = await supabase
     .from("transactions")
@@ -117,9 +140,14 @@ export async function createTransaction(
       client_id: null,
       address,
       city: input.city?.trim() || null,
-      price: parsePrice(input.price),
+      // Price routing: leasing transactions write rental_price (monthly
+      // rent); everything else writes price (sale). Both columns
+      // co-exist; whichever isn't relevant stays null.
+      price: isLeasing ? null : parsePrice(input.price),
+      rental_price: isLeasing ? parsePrice(input.rentalPrice) : null,
       type: input.type?.trim() || null,
       representation,
+      client_type: clientType,
       stage_key: stageKey,
       status,
       closing: input.closing?.trim() || null,
@@ -159,10 +187,14 @@ export async function createTransaction(
 export type UpdateTransactionInput = {
   address?: string;
   city?: string;
-  /** Free-text price; parsed via parsePrice. Empty clears the value. */
+  /** Free-text SALE price. Empty string clears it. */
   price?: string;
+  /** Free-text monthly RENTAL price. Empty string clears it. */
+  rentalPrice?: string;
   type?: string;
   representation?: string;
+  /** Phase N — primary workflow. Empty string clears. */
+  clientType?: string;
   stageKey?: string;
   status?: string;
   /** YYYY-MM-DD. Empty clears the value. */
@@ -203,8 +235,10 @@ export async function updateTransaction(
     address?: string;
     city?: string | null;
     price?: number | null;
+    rental_price?: number | null;
     type?: string | null;
     representation?: Representation | null;
+    client_type?: ClientType | null;
     stage_key?: StageKey;
     status?: TransactionStatus;
     closing?: string | null;
@@ -223,6 +257,9 @@ export async function updateTransaction(
   if (input.price !== undefined) {
     patch.price = parsePrice(input.price);
   }
+  if (input.rentalPrice !== undefined) {
+    patch.rental_price = parsePrice(input.rentalPrice);
+  }
   if (input.type !== undefined) {
     patch.type = input.type.trim() || null;
   }
@@ -234,6 +271,15 @@ export async function updateTransaction(
       const rep = isOneOf(input.representation, REPRESENTATIONS);
       if (!rep) return { ok: false, error: "Invalid representation value." };
       patch.representation = rep;
+    }
+  }
+  if (input.clientType !== undefined) {
+    if (input.clientType === "") {
+      patch.client_type = null;
+    } else {
+      const ct = isOneOf(input.clientType, CLIENT_TYPES);
+      if (!ct) return { ok: false, error: "Invalid client type value." };
+      patch.client_type = ct;
     }
   }
   if (input.stageKey !== undefined) {

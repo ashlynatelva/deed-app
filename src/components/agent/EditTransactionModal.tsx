@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { updateTransaction } from "@/lib/actions/transactions";
+import { STAGES } from "@/lib/mock/stages";
 
 type Props = {
   open: boolean;
@@ -14,9 +15,13 @@ type Props = {
     id: string;
     address: string;
     city: string | null;
-    /** Price in whole dollars; null when no price set. */
+    /** Sale price in whole dollars; null when no price or leasing. */
     price: number | null;
+    /** Phase N — monthly rent in whole dollars; null for sale workflows. */
+    rentalPrice?: number | null;
     representation: string | null;
+    /** Phase N — workflow signal. */
+    clientType?: string | null;
     stageKey: string;
     status: string;
     /** YYYY-MM-DD or null. */
@@ -24,17 +29,9 @@ type Props = {
   } | null;
 };
 
-const STAGE_OPTIONS = [
-  { value: "offer",      label: "Offer sent" },
-  { value: "contract",   label: "Under contract" },
-  { value: "earnest",    label: "Earnest money" },
-  { value: "inspection", label: "Inspection" },
-  { value: "appraisal",  label: "Appraisal" },
-  { value: "loan",       label: "Loan approval" },
-  { value: "ctc",        label: "Clear to close" },
-  { value: "walk",       label: "Final walkthrough" },
-  { value: "closing",    label: "Closing day" },
-];
+// Stage list comes from the canonical STAGES so adding/renaming flows
+// through automatically.
+const STAGE_OPTIONS = STAGES.map((s) => ({ value: s.key, label: s.label }));
 
 const STATUS_OPTIONS = [
   { value: "on_track",        label: "On track" },
@@ -49,11 +46,24 @@ const REPRESENTATION_OPTIONS = [
   { value: "seller_customer", label: "Seller · Customer" },
 ];
 
+// Phase N — keep aligned with CLIENT_TYPE_OPTIONS in NewTransactionModal.
+const CLIENT_TYPE_OPTIONS = [
+  { value: "buyer",              label: "Buyer" },
+  { value: "seller",             label: "Seller" },
+  { value: "residential_tenant", label: "Residential tenant" },
+  { value: "commercial_tenant",  label: "Commercial tenant" },
+];
+
+const isLeasing = (clientType: string): boolean =>
+  clientType === "residential_tenant" || clientType === "commercial_tenant";
+
 type Draft = {
   address: string;
   city: string;
+  clientType: string;
   representation: string;
   price: string;
+  rentalPrice: string;
   closing: string;
   stageKey: string;
   status: string;
@@ -62,8 +72,10 @@ type Draft = {
 const EMPTY_DRAFT: Draft = {
   address: "",
   city: "",
+  clientType: "buyer",
   representation: "",
   price: "",
+  rentalPrice: "",
   closing: "",
   stageKey: "offer",
   status: "on_track",
@@ -105,8 +117,10 @@ export const EditTransactionModal = ({ open, onClose, transaction }: Props) => {
     setDraft({
       address: transaction.address ?? "",
       city: transaction.city ?? "",
+      clientType: transaction.clientType ?? "buyer",
       representation: transaction.representation ?? "",
       price: fmtPrice(transaction.price),
+      rentalPrice: fmtPrice(transaction.rentalPrice ?? null),
       closing: transaction.closing ?? "",
       stageKey: transaction.stageKey ?? "offer",
       status: transaction.status ?? "on_track",
@@ -125,8 +139,9 @@ export const EditTransactionModal = ({ open, onClose, transaction }: Props) => {
   // synchronously so the user can fix the input without a round trip.
   const validate = (): string | null => {
     if (!draft.address.trim()) return "Property address is required.";
-    if (draft.price.trim()) {
-      const cleaned = draft.price.replace(/[^0-9.]/g, "");
+    const priceField = isLeasing(draft.clientType) ? draft.rentalPrice : draft.price;
+    if (priceField.trim()) {
+      const cleaned = priceField.replace(/[^0-9.]/g, "");
       if (!cleaned || !Number.isFinite(Number(cleaned))) {
         return "Price must be a number.";
       }
@@ -148,11 +163,16 @@ export const EditTransactionModal = ({ open, onClose, transaction }: Props) => {
     }
     setSubmitting(true);
     setError(null);
+    // Whichever price field doesn't apply to the current client type
+    // gets explicitly cleared to keep the row consistent (e.g. flipping
+    // a tx from buyer to residential_tenant null-outs the sale price).
     const res = await updateTransaction(transaction.id, {
       address: draft.address,
       city: draft.city,
-      price: draft.price,
-      representation: draft.representation,
+      clientType: draft.clientType,
+      price: isLeasing(draft.clientType) ? "" : draft.price,
+      rentalPrice: isLeasing(draft.clientType) ? draft.rentalPrice : "",
+      representation: isLeasing(draft.clientType) ? "" : draft.representation,
       stageKey: draft.stageKey,
       status: draft.status,
       closing: draft.closing,
@@ -207,29 +227,56 @@ export const EditTransactionModal = ({ open, onClose, transaction }: Props) => {
           />
         </Field>
 
+        <Field label="Client type">
+          <select
+            value={draft.clientType}
+            onChange={(e) => set("clientType", e.target.value)}
+            disabled={submitting}
+            className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60 disabled:opacity-60"
+          >
+            {CLIENT_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </Field>
+
         <Field label="Representation">
           <select
             value={draft.representation}
             onChange={(e) => set("representation", e.target.value)}
-            disabled={submitting}
+            disabled={submitting || isLeasing(draft.clientType)}
             className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60 disabled:opacity-60"
           >
-            <option value="">Choose representation…</option>
+            <option value="">
+              {isLeasing(draft.clientType) ? "—" : "Choose representation…"}
+            </option>
             {REPRESENTATION_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </Field>
 
-        <Field label="Sale price">
-          <input
-            value={draft.price}
-            onChange={(e) => set("price", e.target.value)}
-            placeholder="$1,295,000"
-            disabled={submitting}
-            className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60 disabled:opacity-60"
-          />
-        </Field>
+        {isLeasing(draft.clientType) ? (
+          <Field label="Rental price (monthly)">
+            <input
+              value={draft.rentalPrice}
+              onChange={(e) => set("rentalPrice", e.target.value)}
+              placeholder="$4,500"
+              disabled={submitting}
+              className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60 disabled:opacity-60"
+            />
+          </Field>
+        ) : (
+          <Field label="Sale price">
+            <input
+              value={draft.price}
+              onChange={(e) => set("price", e.target.value)}
+              placeholder="$1,295,000"
+              disabled={submitting}
+              className="w-full h-10 px-3 text-[13.5px] border border-hairline rounded-lg bg-white outline-none focus:border-blue/60 disabled:opacity-60"
+            />
+          </Field>
+        )}
 
         <Field label="Target closing">
           <input

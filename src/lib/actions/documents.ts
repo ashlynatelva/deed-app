@@ -75,6 +75,18 @@ export async function uploadDocument(
 
   const txId = String(formData.get("txId") ?? "");
   const docType = String(formData.get("docType") ?? "");
+  // Phase N — controlled-vocab category. Validated against the same
+  // allow-list the CHECK constraint enforces in the DB; anything
+  // unrecognized falls back to 'other'.
+  const rawDocCategory = String(formData.get("docCategory") ?? "other");
+  const VALID_CATEGORIES = [
+    "purchase_agreement", "lease_agreement", "loan_documents",
+    "inspection_reports", "id_verification", "hoa_docs",
+    "closing_disclosures", "other",
+  ] as const;
+  const docCategory = (VALID_CATEGORIES as readonly string[]).includes(rawDocCategory)
+    ? (rawDocCategory as typeof VALID_CATEGORIES[number])
+    : "other";
   const who = String(formData.get("who") ?? "Agent") as "Client" | "Agent" | "Both";
   const uploadedByRole = String(formData.get("uploadedByRole") ?? "agent") as "agent" | "client";
   const clientVisible = formData.get("clientVisible") === "true";
@@ -98,6 +110,7 @@ export async function uploadDocument(
       transaction_id: txId,
       name: docType,
       doc_type: docType,
+      doc_category: docCategory,
       who,
       status: initialStatus,
       client_visible: clientVisible,

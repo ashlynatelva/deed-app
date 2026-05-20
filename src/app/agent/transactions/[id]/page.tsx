@@ -70,6 +70,8 @@ export default async function AgentTransactionDetailPage({
             address: tx.address,
             city: tx.city ?? null,
             price: tx.price ?? null,
+            rentalPrice: tx.rentalPrice ?? null,
+            clientType: tx.clientType ?? null,
             representation: tx.representation ?? null,
             stageKey: tx.stageKey,
             status: tx.status,

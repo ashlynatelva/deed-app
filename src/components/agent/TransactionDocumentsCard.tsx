@@ -59,6 +59,7 @@ export const TransactionDocumentsCard = ({ txId, txAddress, docs }: Props) => {
     const fd = new FormData();
     fd.set("txId", txId);
     fd.set("docType", info.docType);
+    fd.set("docCategory", info.docCategory);
     fd.set("who", "Agent");
     fd.set("uploadedByRole", "agent");
     fd.set("clientVisible", String(info.clientVisible));

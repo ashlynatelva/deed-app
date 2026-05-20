@@ -25,13 +25,33 @@ export type ProfileStatus = "active" | "inactive" | "deleted";
 
 export type TransactionStatus = "on_track" | "needs_attention" | "at_risk";
 export type StageKey =
+  // Existing sale-workflow stages
   | "offer" | "contract" | "earnest" | "inspection" | "appraisal"
-  | "loan"  | "ctc"      | "walk"    | "closing";
+  | "loan"  | "ctc"      | "walk"    | "closing"
+  // Phase N additions
+  | "listing_onboarding" | "buyer_onboarding" | "credit_repair"
+  | "frame" | "lease_signed" | "occupancy";
 export type StageState = "done" | "current" | "upcoming";
 export type Representation =
   | "buyer_client" | "buyer_customer" | "seller_client" | "seller_customer";
+/**
+ * Primary workflow signal on a transaction. Drives which stage array
+ * the bootstrap trigger seeds, whether the UI shows Sale or Rental
+ * price, and (eventually) KPI grouping.
+ */
+export type ClientType = "buyer" | "seller" | "commercial_tenant" | "residential_tenant";
 export type DocumentStatus =
-  | "needed" | "submitted" | "received" | "reviewed" | "revision";
+  // Existing five
+  | "needed" | "submitted" | "received" | "reviewed" | "revision"
+  // Phase N signing statuses
+  | "awaiting_signature" | "signed" | "rejected" | "expired";
+/** Controlled vocab for document categorization. Free-text `doc_type` is preserved for back-compat. */
+export type DocCategory =
+  | "purchase_agreement" | "lease_agreement" | "loan_documents"
+  | "inspection_reports" | "id_verification" | "hoa_docs"
+  | "closing_disclosures" | "other";
+/** Vendor for e-signature flows. Null until signing is initiated. */
+export type SignatureProvider = "docusign" | "dropbox_sign";
 export type ThreadStatus = "needs_response" | "resolved";
 export type TaskStatus = "todo" | "progress" | "waiting" | "done";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
@@ -141,6 +161,9 @@ export type Database = {
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
+          // Phase N
+          client_type: ClientType | null;
+          rental_price: number | null;
         };
         Insert: {
           id?: string;
@@ -160,6 +183,8 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          client_type?: ClientType | null;
+          rental_price?: number | null;
         };
         Update: {
           id?: string;
@@ -179,6 +204,8 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          client_type?: ClientType | null;
+          rental_price?: number | null;
         };
         Relationships: [];
       };
@@ -240,6 +267,15 @@ export type Database = {
           due_date: string | null;
           created_at: string;
           updated_at: string;
+          // Phase N — controlled-vocab category (doc_type kept for back-compat)
+          doc_category: DocCategory | null;
+          // Phase N — signing scaffolding (null until signing is initiated)
+          signature_provider: SignatureProvider | null;
+          signature_envelope_id: string | null;
+          signature_requested_at: string | null;
+          signed_at: string | null;
+          signer_id: string | null;
+          audit_trail: Json;
         };
         Insert: {
           id?: string;
@@ -259,6 +295,13 @@ export type Database = {
           due_date?: string | null;
           created_at?: string;
           updated_at?: string;
+          doc_category?: DocCategory | null;
+          signature_provider?: SignatureProvider | null;
+          signature_envelope_id?: string | null;
+          signature_requested_at?: string | null;
+          signed_at?: string | null;
+          signer_id?: string | null;
+          audit_trail?: Json;
         };
         Update: {
           id?: string;
@@ -278,6 +321,13 @@ export type Database = {
           due_date?: string | null;
           created_at?: string;
           updated_at?: string;
+          doc_category?: DocCategory | null;
+          signature_provider?: SignatureProvider | null;
+          signature_envelope_id?: string | null;
+          signature_requested_at?: string | null;
+          signed_at?: string | null;
+          signer_id?: string | null;
+          audit_trail?: Json;
         };
         Relationships: [];
       };
